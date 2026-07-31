@@ -3,11 +3,15 @@ name: Importar histórico Circo
 on:
   workflow_dispatch:
     inputs:
-      fecha:
-        description: "Fecha a importar, formato YYYY-MM-DD"
+      fecha_desde:
+        description: "Fecha desde, formato YYYY-MM-DD"
         required: true
         default: "2026-05-08"
 
+      fecha_hasta:
+        description: "Fecha hasta, formato YYYY-MM-DD"
+        required: true
+        default: "2026-05-10"
 jobs:
   importar:
     runs-on: ubuntu-latest
