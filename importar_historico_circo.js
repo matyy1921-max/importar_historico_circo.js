@@ -473,6 +473,68 @@ async function enviarAAppsScript(rows) {
   return result;
 }
 
+function parseIsoDate(dateText) {
+  const match = String(dateText || "").match(
+    /^(\d{4})-(\d{2})-(\d{2})$/
+  );
+
+  if (!match) {
+    throw new Error(
+      `Fecha inválida: ${dateText}. Usá YYYY-MM-DD`
+    );
+  }
+
+  return new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3])
+  );
+}
+
+
+function formatIsoDate(date) {
+  const year = date.getFullYear();
+
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    date.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+
+function generarFechas(desde, hasta) {
+  const start = parseIsoDate(desde);
+  const end = parseIsoDate(hasta);
+
+  if (start > end) {
+    throw new Error(
+      "CIRCO_DATE_FROM no puede ser posterior a CIRCO_DATE_TO"
+    );
+  }
+
+  const dates = [];
+  const current = new Date(start);
+
+  while (current <= end) {
+    dates.push(formatIsoDate(current));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+
+function esperar(ms) {
+  return new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
+}
+
 
 async function main() {
   validarVariables();
@@ -483,47 +545,115 @@ async function main() {
   console.log(`Fecha desde: ${DATE_FROM}`);
   console.log(`Fecha hasta: ${DATE_TO}`);
 
-  /*
-   * Para la primera prueba exigimos un solo día.
-   * Así cada fila representa Fecha + Titular.
-   */
-  if (DATE_FROM !== DATE_TO) {
-    throw new Error(
-      "Primera prueba: CIRCO_DATE_FROM " +
-      "y CIRCO_DATE_TO deben ser iguales"
-    );
-  }
+  const fechas = generarFechas(
+    DATE_FROM,
+    DATE_TO
+  );
+
+  console.log(
+    `Días a procesar: ${fechas.length}`
+  );
 
   const client = crearClienteHttp();
 
   await iniciarSesion(client);
 
-  const html = await obtenerResumen(
-    client,
-    DATE_FROM,
-    DATE_TO
-  );
+  let totalCuentas = 0;
+  let totalInsertadas = 0;
+  let totalDuplicadas = 0;
+  let totalInvalidas = 0;
+  let diasConError = 0;
 
-  const rows = extraerFilasResumen(
-    html,
-    DATE_FROM
-  );
+  for (
+    let index = 0;
+    index < fechas.length;
+    index++
+  ) {
+    const fecha = fechas[index];
+
+    console.log("");
+    console.log(
+      `Procesando ${fecha} ` +
+      `(${index + 1}/${fechas.length})`
+    );
+
+    try {
+      const html = await obtenerResumen(
+        client,
+        fecha,
+        fecha
+      );
+
+      const rows = extraerFilasResumen(
+        html,
+        fecha
+      );
+
+      console.log(
+        `Cuentas extraídas: ${rows.length}`
+      );
+
+      mostrarTotales(rows);
+
+      const result =
+        await enviarAAppsScript(rows);
+
+      totalCuentas += rows.length;
+
+      totalInsertadas +=
+        Number(result.insertedRows) || 0;
+
+      totalDuplicadas +=
+        Number(result.duplicateRows) || 0;
+
+      totalInvalidas +=
+        Number(result.invalidRows) || 0;
+
+    } catch (error) {
+      diasConError++;
+
+      console.error(
+        `Error procesando ${fecha}:`
+      );
+
+      console.error(
+        error.response?.data ||
+        error.message ||
+        error
+      );
+    }
+
+    if (index < fechas.length - 1) {
+      await esperar(1500);
+    }
+  }
+
+  console.log("");
+  console.log("================================");
+  console.log("RESUMEN FINAL");
+  console.log("================================");
 
   console.log(
-    `Cuentas extraídas: ${rows.length}`
+    JSON.stringify(
+      {
+        diasProcesados: fechas.length,
+        diasConError,
+        cuentasExtraidas: totalCuentas,
+        filasInsertadas: totalInsertadas,
+        filasDuplicadas: totalDuplicadas,
+        filasInvalidas: totalInvalidas
+      },
+      null,
+      2
+    )
   );
 
-  console.log(
-    "Primer registro extraído:"
-  );
-
-  console.log(
-    JSON.stringify(rows[0], null, 2)
-  );
-
-  mostrarTotales(rows);
-
-  await enviarAAppsScript(rows);
+  if (diasConError > 0) {
+    throw new Error(
+      `La importación terminó con ` +
+      `${diasConError} días con error`
+    );
+  }
 
   console.log(
     "Importación finalizada correctamente."
@@ -532,7 +662,8 @@ async function main() {
 
 
 main().catch(error => {
-  console.error("ERROR:");
+  console.error("ERROR FINAL:");
+
   console.error(
     error.response?.data ||
     error.stack ||
