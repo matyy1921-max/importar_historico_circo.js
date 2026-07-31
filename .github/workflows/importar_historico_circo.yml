@@ -1,0 +1,37 @@
+name: Importar histórico Circo
+
+on:
+  workflow_dispatch:
+    inputs:
+      fecha:
+        description: "Fecha a importar, formato YYYY-MM-DD"
+        required: true
+        default: "2026-05-08"
+
+jobs:
+  importar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Importar datos de Circo
+        env:
+          CIRCO_EMAIL: ${{ secrets.CIRCO_EMAIL }}
+          CIRCO_PASSWORD: ${{ secrets.CIRCO_PASSWORD }}
+          CIRCO_WEBAPP_URL: ${{ secrets.CIRCO_WEBAPP_URL }}
+          CIRCO_WEBAPP_SECRET: ${{ secrets.CIRCO_WEBAPP_SECRET }}
+          CIRCO_CLIENT_MAP_JSON: ${{ secrets.CIRCO_CLIENT_MAP_JSON }}
+          CIRCO_DATE_FROM: ${{ inputs.fecha }}
+          CIRCO_DATE_TO: ${{ inputs.fecha }}
+        run: node importar_historico_circo.js
