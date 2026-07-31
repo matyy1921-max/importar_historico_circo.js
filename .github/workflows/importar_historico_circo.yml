@@ -12,6 +12,7 @@ on:
         description: "Fecha hasta, formato YYYY-MM-DD"
         required: true
         default: "2026-05-10"
+
 jobs:
   importar:
     runs-on: ubuntu-latest
@@ -42,5 +43,5 @@ jobs:
           CIRCO_WEBAPP_SECRET: ${{ secrets.CIRCO_WEBAPP_SECRET }}
           CIRCO_CLIENT_MAP_JSON: ${{ secrets.CIRCO_CLIENT_MAP_JSON }}
           CIRCO_DATE_FROM: ${{ inputs.fecha_desde }}
-          CIRCO_DATE_TO: ${{ inputs.fecha_hasta }}        
-          run: node importar_historico_circo.js
+          CIRCO_DATE_TO: ${{ inputs.fecha_hasta }}
+        run: node importar_historico_circo.js
